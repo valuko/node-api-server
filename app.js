@@ -1,24 +1,49 @@
-var https = require('https');
 var http = require('http');
-var server = http.createServer();
+var https = require('https');
+var config = require('./config.json');
+var cachedCompanies = {};
 
-var baseUri = 'graph.ir.ee';
-var predictPath = '/predictions/organizations/ee-11735006/bankruptcy-risk-scores';
-var apiKey = 'c2t5cGUyMDE3XzI6anhacTVDS2Q=';
-var options = {
+var baseOptions = {
     protocol: 'https:',
-    host: baseUri,
+    host: config.baseUrl,
     port: 443,
-    path: predictPath,
+    path: '',
     headers: {
-        'Authorization': 'Basic ' + apiKey,
+        'Authorization': 'Basic ' + config.apiKey,
         'Content-Type': 'application/json'
     }
 };
 
+//=======================
+// End Vars
+// ======================
+
+function buildOptions(path) {
+    return {
+        protocol: 'https:',
+        host: config.baseUrl,
+        port: 443,
+        path: path,
+        headers: {
+            'Authorization': 'Basic ' + config.apiKey,
+            'Content-Type': 'application/json'
+        }
+    };
+}
+
+function companyFetch(companyName, callBack) {
+    var urlPath = "/organizations?legal-name="+ companyName;
+    var options = buildOptions(urlPath);
+    https.get(options, callBack);
+}
+
+var server = http.createServer();
+
+var predictPath = '/predictions/organizations/ee-11735006/bankruptcy-risk-scores';
+
 server.on('request', function(request, response){
     response.writeHead(200, {'Content-Type': 'application/json'});
-    https.get(options, function(res){
+    companyFetch("Adcash", function (res) {
         var buffer = "";
         res.on('data', function(chunk) {
             buffer += chunk;
