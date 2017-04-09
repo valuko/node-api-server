@@ -120,10 +120,10 @@ var parseFinResult = function (resultJson) {
         msg += elem+': '+item.value+' EUR, ';
     });
     if (resultItems.length > 0) {
-        const displayMsg = financeFormatStr.replace(/{s}/, msg).replace(/{comp}/, currentCompName);
+        const displayMsg = financeFormatStr.replace(/{s}/, msg).replace(/{comp}/, currentCompName.toUpperCase());
         writeResult({message: displayMsg, data: resultItems});
     } else {
-        const displayMsg = financeEmptyStr.replace(/{comp}/, currentCompName);
+        const displayMsg = financeEmptyStr.replace(/{comp}/, currentCompName.toUpperCase());
         writeResult({message: displayMsg, data: resultItems});
     }
 };
