@@ -6,8 +6,12 @@ var cachedCompanies = {};
 var reqCompany = "Adcash";
 let globResponse;
 let globHandler;
-let boardFormatStr = 'Board Members: {s}';
-let financeFormatStr = 'Last financial status: {s}';
+let currentCompany;
+let currentCompName;
+let boardFormatStr = '{comp} has a {cnt} board member(s): {s}';
+let financeFormatStr = 'The financial status of {comp} is as follows: {s}';
+let financeEmptyStr = 'There is no financial information for {comp} at the moment';
+let boardEmptyStr = 'There is no board information for {comp} at the moment';
 
 var baseOptions = {
     protocol: 'https:',
@@ -66,8 +70,8 @@ function companyFetch(companyName, onFoundCallback, onNotFoundCallback) {
             })
         });
     } else {
-        const orgDetails = cachedCompanies[companyName];
-        onFoundCallback(orgDetails);
+        currentCompany = cachedCompanies[companyName];
+        onFoundCallback(currentCompany);
     }
 }
 
@@ -90,6 +94,7 @@ var handleCompanyCache = function (apiResp) {
     cachedCompanies[reqCompany] = items;
     // extract ID
     cachedCompanies[reqCompany]['id'] = items['_about'].substr(items['_about'].lastIndexOf('/')+1);
+    currentCompany = reqCompany;
     globHandler(cachedCompanies[reqCompany]);
 };
 
@@ -106,25 +111,38 @@ var parseFinResult = function (resultJson) {
         const elem = snakeToCamel(elemName);
         val[elem] = item.value;
         resultItems.push(val);
-        msg += elem+': '+val+' EUR, ';
+        msg += elem+': '+item.value+' EUR, ';
     });
-    const displayMsg = financeFormatStr.replace(/{s}/, msg);
-    writeResult({message: displayMsg, data: resultItems});
+    if (resultItems.length > 0) {
+        const displayMsg = financeFormatStr.replace(/{s}/, msg);
+        writeResult({message: displayMsg, data: resultItems});
+    } else {
+        const displayMsg = financeEmptyStr.replace(/{comp}/, currentCompName);
+        writeResult({message: displayMsg, data: resultItems});
+    }
 };
 
 var parseBoardResult = function (resultJson) {
     let resultItems = [];
     let msg = '';
+    let compName = '';
     resultJson.result.items.forEach(function (item) {
         let val = {};
         val.name = item.member.givenName + item.member.familyName;
         val.since = typeof item.memberDuring.hasBeginning !== undefined ? item.memberDuring.hasBeginning.inXSDDateTime : "";
         val.company = item.organization.legalName;
+        compName = val.company;
         resultItems.push(val);
         msg += val.name + ', ';
     });
-    const displayMsg = boardFormatStr.replace(/{s}/, msg);
-    writeResult({message: displayMsg, data: resultItems});
+
+    if (resultItems.length > 0) {
+        const displayMsg = boardFormatStr.replace(/{s}/, msg).replace(/{comp}/, compName).replace(/{cnt}/, resultItems.length);
+        writeResult({message: displayMsg, data: resultItems});
+    } else {
+        const displayMsg = financeEmptyStr.replace(/{comp}/, currentCompName);
+        writeResult({message: displayMsg, data: resultItems});
+    }
 };
 
 var fetchCompanyFin = function (companyDetails) {
@@ -204,6 +222,7 @@ server.on('request', function(request, response){
         return;
     }
     globHandler = actionHandler;
+    currentCompName = reqParams.company;
     companyFetch(reqParams.company, actionHandler, handleCompanyCache);
 });
 var port = process.env.PORT || 8080;
