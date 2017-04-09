@@ -20,6 +20,19 @@ var baseOptions = {
 //=======================
 // End Vars
 // ======================
+var params=function(req){
+    let q=req.url.split('?'),result={};
+    if(q.length>=2){
+        q[1].split('&').forEach((item)=>{
+            try {
+                result[item.split('=')[0]]=item.split('=')[1];
+            } catch (e) {
+                result[item.split('=')[0]]='';
+            }
+        })
+    }
+    return result;
+};
 
 function buildOptions(path) {
     return {
@@ -32,7 +45,7 @@ function buildOptions(path) {
             'Content-Type': 'application/json'
         }
     };
-}
+};
 
 function companyFetch(companyName, onFoundCallback, onNotFoundCallback) {
     if (typeof cachedCompanies[companyName] === "undefined") {
@@ -60,24 +73,6 @@ function writeResult(respJson) {
     globResponse.end();
 }
 
-var fetchCompanyFin = function (companyDetails) {
-    const compId = companyDetails.id;
-    const finPath = '/organizations/'+compId+'/financial-statement-elements?periodType=year';
-
-    var finOptions = buildOptions(finPath); console.log(finOptions);
-    https.get(finOptions, function (res) {
-        var buffer = "";
-        res.on('data', function(chunk) {
-            buffer += chunk;
-        });
-
-        res.on('end', function(){
-            // decode the json and store before the next call
-            writeResult(JSON.parse(buffer));
-        })
-    });
-};
-
 var handleCompanyCache = function (apiResp) {
     var items = apiResp.result.items.pop();
     cachedCompanies[reqCompany] = items;
@@ -86,15 +81,78 @@ var handleCompanyCache = function (apiResp) {
     fetchCompanyFin(cachedCompanies[reqCompany]);
 };
 
-var server = http.createServer();
+function snakeToCamel(s){
+    return s.replace(/(\-\w)/g, function(m){return m[1].toUpperCase();});
+}
 
-var predictPath = '/predictions/organizations/ee-11735006/bankruptcy-risk-scores';
+var parseFinResult = function (resultJson) {
+    let resultItems = [];
+    resultJson.result.items.forEach(function (item) {
+        let val = {};
+        const elemName = item.elementType.substring(item.elementType.lastIndexOf('/')+1);
+        val[snakeToCamel(elemName)] = item.value;
+        resultItems.push(val);
+    });
+    writeResult(resultItems);
+};
+
+var fetchCompanyFin = function (companyDetails) {
+    const compId = companyDetails.id;
+    const finPath = '/organizations/'+compId+'/financial-statement-elements?periodType=year';
+
+    var finOptions = buildOptions(finPath);
+    https.get(finOptions, function (res) {
+        var buffer = "";
+        res.on('data', function(chunk) {
+            buffer += chunk;
+        });
+
+        res.on('end', function(){
+            // decode the json and store before the next call
+            //writeResult(JSON.parse(buffer));
+            parseFinResult(JSON.parse(buffer));
+        });
+    });
+};
+
+var fetchCompanyHistory = function (companyDetails) {
+
+};
+
+var fetchCompanyBoard = function (companyDetails) {
+
+};
+
+var fetchCompanyCredit = function (companyDetails) {
+
+};
+
+function getActionCallback(actionType) {
+    switch (actionType) {
+        case 'finance': return fetchCompanyFin;
+        break;
+        case 'history': return fetchCompanyHistory;
+        break;
+        case 'board': return fetchCompanyBoard;
+        break;
+        case 'credit': return fetchCompanyCredit;
+        break;
+    }
+}
+
+var server = http.createServer();
 
 server.on('request', function(request, response){
     response.writeHead(200, {'Content-Type': 'application/json'});
     globResponse = response;
-
-    companyFetch(reqCompany, fetchCompanyFin, handleCompanyCache);
+    let reqParams = params(request);
+    if (typeof reqParams['company'] === 'undefined') {
+        response.writeHead( 400, {error: "Missing params"}, {'content-type' : 'application/json'});
+        response.end( 'Company name must be provided');
+        return;
+    }
+    const actionHandler = getActionCallback(reqParams['action']);
+    companyFetch(reqParams.company, fetchCompanyFin, handleCompanyCache);
 });
 var port = process.env.PORT || 8080;
 server.listen(port);
