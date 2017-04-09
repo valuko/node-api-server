@@ -6,6 +6,8 @@ var cachedCompanies = {};
 var reqCompany = "Adcash";
 let globResponse;
 let globHandler;
+let boardFormatStr = 'Board Members: {s}';
+let financeFormatStr = 'Last financial status: {s}';
 
 var baseOptions = {
     protocol: 'https:',
@@ -74,6 +76,15 @@ function writeResult(respJson) {
     globResponse.end();
 }
 
+function writeError(errCode, errMessage) {
+    response.writeHead( errCode, {error: "Unknown action type"}, {'content-type' : 'application/json'});
+    response.end(errMessage);
+}
+
+function formatBoardMessage(jsonData) {
+
+}
+
 var handleCompanyCache = function (apiResp) {
     var items = apiResp.result.items.pop();
     cachedCompanies[reqCompany] = items;
@@ -83,30 +94,37 @@ var handleCompanyCache = function (apiResp) {
 };
 
 function snakeToCamel(s){
-    return s.replace(/(\-\w)/g, function(m){return m[1].toUpperCase();});
+    return s.replace(/(\-\w)/g, function(m){return ' '+m[1].toUpperCase();});
 }
 
 var parseFinResult = function (resultJson) {
     let resultItems = [];
+    let msg = '';
     resultJson.result.items.forEach(function (item) {
         let val = {};
         const elemName = item.elementType.substring(item.elementType.lastIndexOf('/')+1);
-        val[snakeToCamel(elemName)] = item.value;
+        const elem = snakeToCamel(elemName);
+        val[elem] = item.value;
         resultItems.push(val);
+        msg += elem+': '+val+' EUR, ';
     });
-    writeResult(resultItems);
+    const displayMsg = financeFormatStr.replace(/{s}/, msg);
+    writeResult({message: displayMsg, data: resultItems});
 };
 
 var parseBoardResult = function (resultJson) {
     let resultItems = [];
+    let msg = '';
     resultJson.result.items.forEach(function (item) {
         let val = {};
         val.name = item.member.givenName + item.member.familyName;
         val.since = typeof item.memberDuring.hasBeginning !== undefined ? item.memberDuring.hasBeginning.inXSDDateTime : "";
         val.company = item.organization.legalName;
         resultItems.push(val);
+        msg += val.name + ', ';
     });
-    writeResult(resultItems);
+    const displayMsg = boardFormatStr.replace(/{s}/, msg);
+    writeResult({message: displayMsg, data: resultItems});
 };
 
 var fetchCompanyFin = function (companyDetails) {
@@ -122,7 +140,6 @@ var fetchCompanyFin = function (companyDetails) {
 
         res.on('end', function(){
             // decode the json and store before the next call
-            //writeResult(JSON.parse(buffer));
             parseFinResult(JSON.parse(buffer));
         });
     });
@@ -154,11 +171,15 @@ var fetchCompanyCredit = function (companyDetails) {
 
 function getActionCallback(actionType) {
     switch (actionType) {
-        case 'finance': return fetchCompanyFin;
+        case 'finance':
+        case 'financial':
+            return fetchCompanyFin;
         break;
         case 'history': return fetchCompanyHistory;
         break;
-        case 'board': return fetchCompanyBoard;
+        case 'board':
+        case 'board-members':
+            return fetchCompanyBoard;
         break;
         case 'credit': return fetchCompanyCredit;
         break;
