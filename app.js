@@ -57,7 +57,7 @@ function buildOptions(path) {
 
 function companyFetch(companyName, onFoundCallback, onNotFoundCallback) {
     if (typeof cachedCompanies[companyName] === "undefined") {
-        var urlPath = "/organizations?legal-name="+ companyName;
+        var urlPath = "/organizations?legal-name="+ encodeURIComponent(companyName);
         var options = buildOptions(urlPath);
         https.get(options, function (res) {
             var buffer = "";
@@ -228,7 +228,7 @@ server.on('request', function(request, response){
         return;
     }
     globHandler = actionHandler;
-    currentCompName = reqParams.company.replace(/\W+/g, "");
+    currentCompName = decodeURIComponent(reqParams.company).replace(/\?\//g, "");
     companyFetch(currentCompName, actionHandler, handleCompanyCache);
 });
 var port = process.env.PORT || 8080;
