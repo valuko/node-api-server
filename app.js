@@ -12,6 +12,7 @@ let boardFormatStr = '{comp} has a {cnt} board member(s): {s}';
 let financeFormatStr = 'The financial status of {comp} is as follows: {s}';
 let financeEmptyStr = 'There is no financial information for {comp} at the moment';
 let boardEmptyStr = 'There is no board information for {comp} at the moment';
+let companyEmptyStr = 'At the moment I cannot find the requested information on {comp}';
 
 var baseOptions = {
     protocol: 'https:',
@@ -91,11 +92,16 @@ function formatBoardMessage(jsonData) {
 
 var handleCompanyCache = function (apiResp) {
     var items = apiResp.result.items.pop();
-    cachedCompanies[reqCompany] = items;
-    // extract ID
-    cachedCompanies[reqCompany]['id'] = items['_about'].substr(items['_about'].lastIndexOf('/')+1);
-    currentCompany = reqCompany;
-    globHandler(cachedCompanies[reqCompany]);
+    if (typeof items === 'undefined') {
+        const displayMsg = companyEmptyStr.replace(/{comp}/, currentCompName);
+        writeResult({message: displayMsg, data: []});
+    } else {
+        cachedCompanies[reqCompany] = items;
+        // extract ID
+        cachedCompanies[reqCompany]['id'] = items['_about'].substr(items['_about'].lastIndexOf('/')+1);
+        currentCompany = reqCompany;
+        globHandler(cachedCompanies[reqCompany]);
+    }
 };
 
 function snakeToCamel(s){
