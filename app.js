@@ -114,7 +114,7 @@ var parseFinResult = function (resultJson) {
         msg += elem+': '+item.value+' EUR, ';
     });
     if (resultItems.length > 0) {
-        const displayMsg = financeFormatStr.replace(/{s}/, msg);
+        const displayMsg = financeFormatStr.replace(/{s}/, msg).replace(/{comp}/, currentCompName);
         writeResult({message: displayMsg, data: resultItems});
     } else {
         const displayMsg = financeEmptyStr.replace(/{comp}/, currentCompName);
@@ -222,8 +222,8 @@ server.on('request', function(request, response){
         return;
     }
     globHandler = actionHandler;
-    currentCompName = reqParams.company;
-    companyFetch(reqParams.company, actionHandler, handleCompanyCache);
+    currentCompName = reqParams.company.replace(/\W+/g, "");
+    companyFetch(currentCompName, actionHandler, handleCompanyCache);
 });
 var port = process.env.PORT || 8080;
 server.listen(port);
