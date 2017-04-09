@@ -5,6 +5,7 @@ var config = require('./config.json');
 var cachedCompanies = {};
 var reqCompany = "Adcash";
 let globResponse;
+let globHandler;
 
 var baseOptions = {
     protocol: 'https:',
@@ -78,7 +79,7 @@ var handleCompanyCache = function (apiResp) {
     cachedCompanies[reqCompany] = items;
     // extract ID
     cachedCompanies[reqCompany]['id'] = items['_about'].substr(items['_about'].lastIndexOf('/')+1);
-    fetchCompanyFin(cachedCompanies[reqCompany]);
+    globHandler(cachedCompanies[reqCompany]);
 };
 
 function snakeToCamel(s){
@@ -91,6 +92,18 @@ var parseFinResult = function (resultJson) {
         let val = {};
         const elemName = item.elementType.substring(item.elementType.lastIndexOf('/')+1);
         val[snakeToCamel(elemName)] = item.value;
+        resultItems.push(val);
+    });
+    writeResult(resultItems);
+};
+
+var parseBoardResult = function (resultJson) {
+    let resultItems = [];
+    resultJson.result.items.forEach(function (item) {
+        let val = {};
+        val.name = item.member.givenName + item.member.familyName;
+        val.since = typeof item.memberDuring.hasBeginning !== undefined ? item.memberDuring.hasBeginning.inXSDDateTime : "";
+        val.company = item.organization.legalName;
         resultItems.push(val);
     });
     writeResult(resultItems);
@@ -121,6 +134,18 @@ var fetchCompanyHistory = function (companyDetails) {
 
 var fetchCompanyBoard = function (companyDetails) {
 
+    const boardPath = '/organizations/'+companyDetails.id+'/board-members';
+    https.get(buildOptions(boardPath), function (res) {
+        let buffer = "";
+        res.on('data', function(chunk) {
+            buffer += chunk;
+        });
+
+        res.on('end', function(){
+            // decode the json and store before the next call
+            parseBoardResult(JSON.parse(buffer));
+        });
+    });
 };
 
 var fetchCompanyCredit = function (companyDetails) {
@@ -152,7 +177,13 @@ server.on('request', function(request, response){
         return;
     }
     const actionHandler = getActionCallback(reqParams['action']);
-    companyFetch(reqParams.company, fetchCompanyFin, handleCompanyCache);
+    if (typeof actionHandler === 'undefined') {
+        response.writeHead( 400, {error: "Unknown action type"}, {'content-type' : 'application/json'});
+        response.end( 'Action type can not be determined');
+        return;
+    }
+    globHandler = actionHandler;
+    companyFetch(reqParams.company, actionHandler, handleCompanyCache);
 });
 var port = process.env.PORT || 8080;
 server.listen(port);
